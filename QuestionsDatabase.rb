@@ -64,6 +64,10 @@ class User
     def followed_questions
       QuestionFollower.followed_questions_for_user_id(self.id)
     end
+
+    def liked_questions
+      QuestionLike.liked_questions_for_user_id(self.id)
+    end
 end
 
 class Question
@@ -120,6 +124,18 @@ class Question
     def followers
       QuestionFollower.followers_for_question_id(self.id)
     end
+
+    def self.most_followed(n)
+      QuestionFollower.most_followed_questions(n)
+    end
+
+    def likers
+      QuestionLike.likers_for_question_id(self.id)
+    end
+
+    def num_likes
+      QuestionLike.num_likes_for_question_id(self.id)
+    end
 end
 
 class QuestionFollower
@@ -151,7 +167,7 @@ class QuestionFollower
 
   def self.followers_for_question_id(question_id)
     results = QuestionsDatabase.instance.execute(<<-SQL, question_id)
-      SELECT * FROM users
+      SELECT users.* FROM users
       JOIN question_followers ON question_followers.userid = users.id
       WHERE question_followers.questionid = ?
     SQL
@@ -160,11 +176,22 @@ class QuestionFollower
 
   def self.followed_questions_for_user_id(user_id)
     results = QuestionsDatabase.instance.execute(<<-SQL, user_id)
-      SELECT * FROM questions
+      SELECT questions.* FROM questions
       JOIN question_followers ON question_followers.questionid = questions.id
       WHERE question_followers.userid = ?
     SQL
     results.map { |result| Question.new(result) }
+  end
+
+  def self.most_followed_questions(n)
+    results = QuestionsDatabase.instance.execute(<<-SQL)
+      SELECT COUNT(question_followers.id) FROM question_followers
+      JOIN questions ON question_followers.questionid = questions.id
+      WHERE question_followers.userid = user.id
+      GROUP BY question_followers.questionid
+      ORDER BY DESC COUNT(id)
+    SQL
+    results[0...n].map { |result| Question.new(result) }
   end
 end
 
@@ -259,16 +286,43 @@ class QuestionLike
   end
 
   def create
-      raise 'already saved!' unless self.id.nil?
+    raise 'already saved!' unless self.id.nil?
 
-      params = [self.id, self.userid, self.questionid]
-      QuestionsDatabase.instance.execute(<<-SQL, *params)
-        INSERT INTO
-          question_likes (id, userid, questionid)
-        VALUES
-          (?, ?)
-      SQL
+    params = [self.id, self.userid, self.questionid]
+    QuestionsDatabase.instance.execute(<<-SQL, *params)
+      INSERT INTO
+        question_likes (id, userid, questionid)
+      VALUES
+        (?, ?)
+    SQL
 
-      @id = QuestionsDatabase.instance.last_insert_row_id
-    end
+    @id = QuestionsDatabase.instance.last_insert_row_id
+  end
+
+  def self.likers_for_question_id(question_id)
+    results = QuestionsDatabase.instance.execute(<<-SQL, question_id)
+      SELECT users.* FROM users
+      JOIN question_likes ON question_likes.userid = users.id
+      WHERE question_followers.questionid = ?
+    SQL
+    results.map { |result| User.new(result) }
+  end
+
+  def self.num_likes_for_question_id(question_id)
+    results = QuestionsDatabase.instance.execute(<<-SQL, question_id)
+      SELECT COUNT(users.*) FROM users
+      JOIN question_likes ON question_likes.userid = users.id
+      WHERE question_followers.questionid = ?
+    SQL
+    results.map { |result| User.new(result) }
+  end
+
+  def self.liked_questions_for_user_id(user_id)
+    results = QuestionsDatabase.instance.execute(<<-SQL, user_id)
+      SELECT questions.* FROM questions
+      JOIN question_likes ON question_likes.questionid = questions.id
+      WHERE question_likes.userid = ?
+    SQL
+    results.map { |result| Question.new(result) }
+  end
 end
