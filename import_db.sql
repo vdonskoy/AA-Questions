@@ -22,7 +22,7 @@ CREATE TABLE replies (
   id INTEGER PRIMARY KEY,
   body VARCHAR(255) NOT NULL,
   questionid INTEGER NOT NULL,
-  replyid INTEGER NOT NULL,
+  replyid INTEGER,
   userid INTEGER NOT NULL,
   FOREIGN KEY (questionid) REFERENCES questions(id),
   FOREIGN KEY (replyid) REFERENCES replies(id),
@@ -49,6 +49,7 @@ VALUES
 ('question2','how come?',(SELECT id FROM users WHERE fname = 'Dude'));
 
 INSERT INTO
-replies(body, questionid)
+replies(body, questionid, userid)
 VALUES
-('because',(SELECT id FROM questions WHERE body = 'why?'));
+('because',(SELECT id FROM questions WHERE body = 'why?'),
+(SELECT id FROM users WHERE id = '1'));

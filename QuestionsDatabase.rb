@@ -36,6 +36,30 @@ class User
 
       @id = QuestionsDatabase.instance.last_insert_row_id
     end
+
+    def self.find_by_name(fname,lname)
+      results = QuestionsDatabase.instance.execute(<<-SQL, fname, lname)
+        SELECT * FROM users
+        WHERE users.fname = ? AND users.lname = ?
+      SQL
+      results.map { |result| User.new(result) }
+    end
+
+    def authored_questions
+      results = QuestionsDatabase.instance.execute(<<-SQL, self.id)
+        SELECT * FROM questions
+        WHERE questions.authorid = ?
+      SQL
+      results.map { |result| Question.new(result) }
+    end
+
+    def authored_replies
+      results = QuestionsDatabase.instance.execute(<<-SQL, self.id)
+        SELECT * FROM replies
+        WHERE replies.userid = ?
+      SQL
+      results.map { |result| Reply.new(result) }
+    end
 end
 
 class Question
@@ -52,17 +76,41 @@ class Question
   end
 
   def create
-      raise 'already saved!' unless self.id.nil?
+    raise 'already saved!' unless self.id.nil?
 
-      params = [self.title, self.body, self.authorid]
-      QuestionsDatabase.instance.execute(<<-SQL, *params)
-        INSERT INTO
-          users (title, body, authorid)
-        VALUES
-          (?, ?, ?)
+    params = [self.title, self.body, self.authorid]
+    QuestionsDatabase.instance.execute(<<-SQL, *params)
+      INSERT INTO
+        users (title, body, authorid)
+      VALUES
+        (?, ?, ?)
       SQL
 
-      @id = QuestionsDatabase.instance.last_insert_row_id
+    @id = QuestionsDatabase.instance.last_insert_row_id
+    end
+
+    def self.find_by_author(author_id)
+      results = QuestionsDatabase.instance.execute(<<-SQL, author_id)
+        SELECT * FROM questions
+        WHERE questions.authorid = ?
+      SQL
+      results.map { |result| Question.new(result)}
+    end
+
+    def author
+      results = QuestionsDatabase.instance.execute(<<-SQL, self.authorid)
+        SELECT * FROM users
+        WHERE users.id = ?
+      SQL
+      results.map { |result| User.new(result)}
+    end
+
+    def replies
+      results = QuestionsDatabase.instance.execute(<<-SQL, self.id)
+        SELECT * FROM replies
+        WHERE replies.questionid = ?
+      SQL
+      results.map { |result| Reply.new(result)}
     end
 end
 
@@ -104,14 +152,14 @@ class Reply
   attr_accessor :id, :body, :questionid, :replyid, :userid
 
   def initialize(options = {})
-    @id, @userid =
+    @id, @body, @questionid, @replyid, @userid =
      options.values_at('id', 'body', 'questionid', 'replyid', 'userid')
   end
 
   def create
       raise 'already saved!' unless self.id.nil?
 
-      params = [self.id, self.body, self.questionid, self.replyid self.userid]
+      params = [self.id, self.body, self.questionid, self.replyid, self.userid]
       QuestionsDatabase.instance.execute(<<-SQL, *params)
         INSERT INTO
           replies (id, body, questionid, replyid, userid)
@@ -120,6 +168,54 @@ class Reply
       SQL
 
       @id = QuestionsDatabase.instance.last_insert_row_id
+    end
+
+    def self.find_by_question_id(question_id)
+      results = QuestionsDatabase.instance.execute(<<-SQL, question_id)
+        SELECT * FROM replies
+        WHERE replies.questionid = ?
+      SQL
+      results.map { |result| p(result); Reply.new(result) }
+    end
+
+    def self.find_by_user_id(user_id)
+      results = QuestionsDatabase.instance.execute(<<-SQL, user_id)
+        SELECT * FROM replies
+        WHERE replies.userid = ?
+      SQL
+      results.map { |result| Reply.new(result) }
+    end
+
+    def author
+      results = QuestionsDatabase.instance.execute(<<-SQL, self.userid)
+        SELECT * FROM users
+        WHERE users.id = ?
+      SQL
+      results.map { |result| User.new(result) }
+    end
+
+    def question
+      results = QuestionsDatabase.instance.execute(<<-SQL, self.questionid)
+        SELECT * FROM questions
+        WHERE questions.id = ?
+      SQL
+      results.map { |result| Question.new(result) }
+    end
+
+    def parent_reply
+      results = QuestionsDatabase.instance.execute(<<-SQL, self.replyid)
+        SELECT * FROM replies
+        WHERE replies.id = ?
+      SQL
+      results.map { |result| Reply.new(result) }
+    end
+
+    def child_replies
+      results = QuestionsDatabase.instance.execute(<<-SQL, self.id)
+        SELECT * FROM replies
+        WHERE replies.replyid = ?
+      SQL
+      results.map { |result| Reply.new(result) }
     end
 end
 
