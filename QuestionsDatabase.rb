@@ -60,6 +60,10 @@ class User
       SQL
       results.map { |result| Reply.new(result) }
     end
+
+    def followed_questions
+      QuestionFollower.followed_questions_for_user_id(self.id)
+    end
 end
 
 class Question
@@ -112,6 +116,10 @@ class Question
       SQL
       results.map { |result| Reply.new(result)}
     end
+
+    def followers
+      QuestionFollower.followers_for_question_id(self.id)
+    end
 end
 
 class QuestionFollower
@@ -128,18 +136,36 @@ class QuestionFollower
   end
 
   def create
-      raise 'already saved!' unless self.id.nil?
+    raise 'already saved!' unless self.id.nil?
 
-      params = [self.id, self.userid]
-      QuestionsDatabase.instance.execute(<<-SQL, *params)
-        INSERT INTO
-          question_followers (id, userid)
-        VALUES
-          (?, ?)
+    params = [self.id, self.userid]
+    QuestionsDatabase.instance.execute(<<-SQL, *params)
+      INSERT INTO
+        question_followers (id, userid)
+      VALUES
+        (?, ?)
       SQL
 
-      @id = QuestionsDatabase.instance.last_insert_row_id
-    end
+    @id = QuestionsDatabase.instance.last_insert_row_id
+  end
+
+  def self.followers_for_question_id(question_id)
+    results = QuestionsDatabase.instance.execute(<<-SQL, question_id)
+      SELECT * FROM users
+      JOIN question_followers ON question_followers.userid = users.id
+      WHERE question_followers.questionid = ?
+    SQL
+    results.map { |result| User.new(result) }
+  end
+
+  def self.followed_questions_for_user_id(user_id)
+    results = QuestionsDatabase.instance.execute(<<-SQL, user_id)
+      SELECT * FROM questions
+      JOIN question_followers ON question_followers.questionid = questions.id
+      WHERE question_followers.userid = ?
+    SQL
+    results.map { |result| Question.new(result) }
+  end
 end
 
 class Reply
